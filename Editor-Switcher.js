@@ -1,0 +1,251 @@
+
+
+/*******************************************************
+ * CC-BY bildungssprit | Falk Szyba @medienrocker *
+ *******************************************************/ 
+
+/**************************************************
+ * Moodle Editor Switcher
+ * -----------------------------------------------
+ * Fügt einen Button "Editor wechseln" ein.
+ * Klick = Overlay mit Editor-Einstellungen öffnet.
+ * Ablauf:
+ *  - Lädt Moodle-Einstellungsseite im Iframe.
+ *  - Wechselt automatisch den Editor:
+ *      Standard/Atto/Tiny → Plain-Text
+ *      Plain-Text → Standard
+ *  - Speichert Änderung & lädt Seite neu.
+ * Bedienung:
+ *  - ✕ = Schließen ohne Reload
+ *  - "Save & Reload" = Schließen + Seite neu laden
+ * Hinweis:
+ *  - Funktioniert nur, wenn Moodle-Seite gleiche Domain hat.
+ *  - Selektoren ggf. an Moodle-Version anpassen.
+ *
+ * -----------------------------------------------
+ * Für das eigene Moodle einstellen:
+ * -----------------------------------------------
+ * const MOODLE_IFRAME_URL = 'https://.../user/editor.php'
+ *   → URL zur Seite mit den persönlichen Editor-Einstellungen
+ *
+ * const EDITOR_SELECT_SELECTOR = '#id_preference_htmleditor'
+ *   → CSS-Selektor für das Dropdown zur Editor-Auswahl
+ *
+ * const SAVE_BUTTON_SELECTOR = '#id_submitbutton'
+ *   → CSS-Selektor für den Speichern-Button
+ *
+ * const EDITOR_VALUES = {
+ *   standard: '',        → Standard-Editor (Moodle-Default)
+ *   atto: 'atto',        → Atto-Editor
+ *   tiny: 'tiny',        → TinyMCE-Editor
+ *   plain: 'textarea'    → Einfaches Textfeld
+ * }
+ **************************************************/
+
+
+// Editor Settings Iframe Button
+(function() {
+    // Create the toggle button
+    const toggleButton = document.createElement('button');
+    toggleButton.textContent = 'Editor wechseln';
+    toggleButton.className = 'btn btn-primary';
+    toggleButton.style.margin = '10px 0';
+    toggleButton.style.display = 'block';
+    
+    let overlay = null;
+    
+    // Main variables. Modify with your own moodle settings.
+    const MOODLE_IFRAME_URL = 'https://lms.lernen.hamburg/user/editor.php';
+    const EDITOR_SELECT_SELECTOR = '#id_preference_htmleditor';
+    const SAVE_BUTTON_SELECTOR = '#id_submitbutton';
+    const EDITOR_VALUES = {
+        standard: '',         // Standard-Editor
+        atto: 'atto',         // Atto-Editor
+        tiny: 'tiny',         // TinyMCE-Editor
+        plain: 'textarea'     // Plain-Text-Editor
+    };
+    
+    // Add click handler to show editor settings iframe
+    toggleButton.addEventListener('click', function() {
+        // If overlay is already open, close it
+        if (overlay && overlay.parentNode) {
+            overlay.parentNode.removeChild(overlay);
+            overlay = null;
+            return;
+        }
+        
+        // Create overlay container
+        overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.backgroundColor = 'rgba(0,0,0,0.7)';
+        overlay.style.zIndex = '9998';
+        overlay.style.display = 'flex';
+        overlay.style.flexDirection = 'column';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        
+        // Create modal container
+        const modal = document.createElement('div');
+        modal.style.backgroundColor = 'white';
+        modal.style.borderRadius = '8px';
+        modal.style.boxShadow = '0 0 20px rgba(0,0,0,0.5)';
+        modal.style.width = '80%';
+        modal.style.maxWidth = '1000px';
+        modal.style.height = '80%';
+        modal.style.maxHeight = '800px';
+        modal.style.display = 'flex';
+        modal.style.flexDirection = 'column';
+        modal.style.overflow = 'hidden';
+        modal.style.position = 'relative';
+        
+        // Create header with title and close button
+        const header = document.createElement('div');
+        header.style.padding = '15px';
+        header.style.borderBottom = '1px solid #e0e0e0';
+        header.style.display = 'flex';
+        header.style.justifyContent = 'space-between';
+        header.style.alignItems = 'center';
+        header.style.backgroundColor = '#f5f5f5';
+        
+        const title = document.createElement('h3');
+        title.textContent = 'Editor Settings';
+        title.style.margin = '0';
+        title.style.padding = '0';
+        
+        const closeButton = document.createElement('button');
+        closeButton.textContent = '✕';
+        closeButton.className = 'btn btn-danger';
+        closeButton.style.borderRadius = '50%';
+        closeButton.style.width = '40px';
+        closeButton.style.height = '40px';
+        closeButton.style.display = 'flex';
+        closeButton.style.alignItems = 'center';
+        closeButton.style.justifyContent = 'center';
+        closeButton.style.fontSize = '18px';
+        closeButton.style.cursor = 'pointer';
+        closeButton.title = 'Close without saving';
+        
+        // Create reload button
+        const reloadButton = document.createElement('button');
+        reloadButton.textContent = 'Save & Reload';
+        reloadButton.className = 'btn btn-success';
+        reloadButton.style.marginRight = '10px';
+        reloadButton.title = 'Fenster schließen und Seite neu laden, um die Aenderungen zu speichern';
+        
+        const buttonContainer = document.createElement('div');
+        buttonContainer.appendChild(reloadButton);
+        buttonContainer.appendChild(closeButton);
+        
+        header.appendChild(title);
+        header.appendChild(buttonContainer);
+        
+        // Create iframe container
+        const iframeContainer = document.createElement('div');
+        iframeContainer.style.flex = '1';
+        iframeContainer.style.overflow = 'hidden';
+        
+        // Create the iframe
+        const iframe = document.createElement('iframe');
+        iframe.src = MOODLE_IFRAME_URL;
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        
+        // Add instructions when iframe loads
+        iframe.onload = function() {
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                
+                // Find the editor selection dropdown using the correct ID
+                const editorSelect = iframeDoc.querySelector(EDITOR_SELECT_SELECTOR);
+                
+                if (editorSelect) {
+                    // Get current selection
+                    const currentEditor = editorSelect.value;
+                    
+                    // Switch between editors
+                    if (
+                        currentEditor === EDITOR_VALUES.standard ||
+                        currentEditor === EDITOR_VALUES.atto ||
+                        currentEditor === EDITOR_VALUES.tiny
+                    ) {
+                        editorSelect.value = EDITOR_VALUES.plain;
+                    } else {
+                        editorSelect.value = EDITOR_VALUES.standard;
+                    }
+                    
+                    // Trigger change event
+                    const event = new Event('change');
+                    editorSelect.dispatchEvent(event);
+                    
+                    // Find and click the save button using the correct ID
+                    const saveButton = iframeDoc.querySelector(SAVE_BUTTON_SELECTOR);
+                    if (saveButton) {
+                        saveButton.click();
+                    }
+                    
+                    // Close the overlay and reload after a short delay [1000 = 1 Sekunde]
+                    setTimeout(() => {
+                        document.body.removeChild(overlay);
+                        overlay = null;
+                        window.location.reload();
+                    }, 1000);
+                }
+                
+                // Add info message
+                const infoMessage = document.createElement('div');
+                infoMessage.innerHTML = '<div style="background-color: #d1ecf1; color: #0c5460; padding: 10px; margin: 10px; border-radius: 5px; text-align: center;">' +
+                    '<strong>Automatische Umschaltung:</strong> ' +
+                    'Der Editor wird automatisch gewechselt und die Seite neu geladen.' +
+                    '</div>';
+                iframeDoc.body.insertBefore(infoMessage, iframeDoc.body.firstChild);
+            } catch (e) {
+                console.error("Could not modify iframe content:", e);
+                
+                // Show error message in the modal
+                const errorMessage = document.createElement('div');
+                errorMessage.innerHTML = '<div style="background-color: #f8d7da; color: #721c24; padding: 10px; margin: 10px; border-radius: 5px; text-align: center;">' +
+                    '<strong>Fehler:</strong> ' +
+                    'Der Editor konnte nicht automatisch gewechselt werden. Bitte versuchen Sie es manuell.' +
+                    '</div>';
+                modal.insertBefore(errorMessage, iframeContainer);
+            }
+        };
+        
+        // Event listeners for buttons
+        closeButton.addEventListener('click', function() {
+            document.body.removeChild(overlay);
+            overlay = null;
+        });
+        
+        reloadButton.addEventListener('click', function() {
+            document.body.removeChild(overlay);
+            overlay = null;
+            window.location.reload();
+        });
+        
+        // Add click handler to overlay for closing when clicking outside
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) {
+                document.body.removeChild(overlay);
+                overlay = null;
+            }
+        });
+        
+        // Assemble the modal
+        iframeContainer.appendChild(iframe);
+        modal.appendChild(header);
+        modal.appendChild(iframeContainer);
+        overlay.appendChild(modal);
+        
+        // Add to page
+        document.body.appendChild(overlay);
+    });
+    
+    // Add the button to the document
+    document.currentScript.parentNode.insertBefore(toggleButton, document.currentScript.nextSibling);
+})();
