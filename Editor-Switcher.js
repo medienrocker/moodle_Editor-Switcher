@@ -47,10 +47,11 @@
 (function() {
     // Create the toggle button
     const toggleButton = document.createElement('button');
-    toggleButton.textContent = 'Editor wechseln';
-    toggleButton.className = 'btn btn-primary';
+    toggleButton.className = 'btn editor-switcher-btn btn-primary';
     toggleButton.style.margin = '10px 0';
     toggleButton.style.display = 'block';
+    toggleButton.style.minHeight = '60px';
+    toggleButton.style.padding = '10px 15px';
     
     let overlay = null;
     
@@ -64,6 +65,66 @@
         tiny: 'tiny',         // TinyMCE-Editor
         plain: 'textarea'     // Plain-Text-Editor
     };
+    
+    // Editor detection and button update functions
+    function detectCurrentEditor(callback) {
+        const tempIframe = document.createElement('iframe');
+        tempIframe.style.display = 'none';
+        tempIframe.src = MOODLE_IFRAME_URL;
+        
+        tempIframe.onload = function() {
+            try {
+                const iframeDoc = tempIframe.contentDocument || tempIframe.contentWindow.document;
+                const editorSelect = iframeDoc.querySelector(EDITOR_SELECT_SELECTOR);
+                
+                if (editorSelect) {
+                    const currentValue = editorSelect.value;
+                    let editorName = 'Standard';
+                    
+                    if (currentValue === EDITOR_VALUES.plain) editorName = 'Plain Text';
+                    else if (currentValue === EDITOR_VALUES.atto) editorName = 'Atto';
+                    else if (currentValue === EDITOR_VALUES.tiny) editorName = 'TinyMCE';
+                    
+                    callback(editorName, currentValue);
+                } else {
+                    callback('Standard', '');
+                }
+            } catch (e) {
+                console.error("Editor detection failed:", e);
+                callback('Standard', '');
+            } finally {
+                document.body.removeChild(tempIframe);
+            }
+        };
+        
+        document.body.appendChild(tempIframe);
+    }
+
+    function updateButtonText(editorName, editorValue) {
+        const button = document.querySelector('.editor-switcher-btn');
+        if (!button) return;
+        
+        // Update text content
+        button.innerHTML = `
+            <div style="line-height: 1.2;">
+                <div style="font-weight: bold;">${editorName}</div>
+                <div style="font-size: 0.9em; opacity: 0.8;">Klicken zum Wechseln</div>
+            </div>
+        `;
+        
+        // Update color based on editor type
+        button.className = 'btn editor-switcher-btn';
+        if (editorValue === EDITOR_VALUES.plain) {
+            button.classList.add('btn-danger');
+        } else if (editorValue === EDITOR_VALUES.standard || editorValue === '') {
+            button.classList.add('btn-success');
+        } else {
+            button.classList.add('btn-primary');
+        }
+    }
+    
+    // Detect current editor and update button
+    detectCurrentEditor(updateButtonText);
     
     // Add click handler to show editor settings iframe
     toggleButton.addEventListener('click', function() {
@@ -194,6 +255,11 @@
                         overlay = null;
                         window.location.reload();
                     }, 1000);
+                    
+                    // Update button after successful switch
+                    setTimeout(() => {
+                        detectCurrentEditor(updateButtonText);
+                    }, 2000);
                 }
                 
                 // Add info message
